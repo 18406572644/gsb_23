@@ -152,10 +152,16 @@ export interface WelcomeMsg {
   seq: number
 }
 
-/** 增量补齐：重连后补发错过的操作 */
+/** 增量补齐：重连/重同步后补发错过的操作，并携带服务端权威的全量批注快照 */
 export interface OpsMsg {
   type: 'ops'
   ops: { revision: number; op: Op; opId: string; clientId: string; authorName: string }[]
+  /**
+   * 服务端当前全量批注（权威状态，锚点已包含所有已应用操作的影响）。
+   * 客户端以其为准替换本地批注；重放 ops 更新正文时不得再变换这些锚点，
+   * 否则会与快照中已映射的位置重复叠加。
+   */
+  annotations: Annotation[]
   revision: number
   seq: number
 }

@@ -176,6 +176,9 @@ wss.on('connection', (ws: WebSocket) => {
                 clientId: e.clientId,
                 authorName: e.authorName,
               })),
+              // 与 welcome 一致的服务端权威批注快照（同一同步块内状态未变），
+              // 客户端重放 ops 更新正文时直接采用，不再对锚点做二次变换
+              annotations: [...session.annotations.values()],
               revision: session.revision,
               seq: session.seq,
             } satisfies ServerMsg)
@@ -253,6 +256,9 @@ wss.on('connection', (ws: WebSocket) => {
                 clientId: e.clientId,
                 authorName: e.authorName,
               })),
+              // 携带服务端权威全量批注：重同步期间错过的批注新增/回复/解决/删除
+              // 均已反映其中，客户端直接采用，避免该窗口的批注广播被丢弃后状态滞后
+              annotations: [...session.annotations.values()],
               revision: session.revision,
               seq: session.seq,
             } satisfies ServerMsg)

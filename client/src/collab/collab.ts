@@ -35,6 +35,12 @@ class Collab {
   private ot: OTClient
   private lastSeq = 0
   private resyncing = false
+  /**
+   * 正在重放服务端补发的 backlog 操作（resyncOps）期间为 true。
+   * 这些操作对批注锚点的影响已包含在服务端下发的权威批注快照中，
+   * 重放时只更新正文，不得再变换锚点，否则会造成位置二次位移。
+   */
+  private applyingResyncOps = false
   private remoteListeners: RemoteListener[] = []
   private cursorTimer: ReturnType<typeof setTimeout> | null = null
   private lastCursorSent = 0
@@ -110,6 +116,7 @@ class Collab {
     }
     this.joinedOnce = false
     this.resyncing = false
+    this.applyingResyncOps = false
     useSessionStore().$reset()
     useDocStore().$reset()
     this.ot.rollback(0)
@@ -189,8 +196,15 @@ class Collab {
         break
 
       case 'ops': {
-        // 增量补齐：重放错过的操作（含可能已收到的自己的操作，按 opId 去重）
-        this.ot.resyncOps(msg.ops, msg.revision)
+        // 增量补齐：先采用服务端权威批注快照（锚点已包含 backlog 操作的全部影响），
+        // 再重放错过的操作更新正文（含可能已收到的自己的操作，按 opId 去重）。
+        doc.annotations = msg.annotations
+        this.applyingResyncOps = true
+        try {
+          this.ot.resyncOps(msg.ops, msg.revision)
+        } finally {
+          this.applyingResyncOps = false
+        }
         doc.revision = this.ot.revision
         this.lastSeq = msg.seq
         this.finishResync()
@@ -213,12 +227,15 @@ class Collab {
       }
 
       case 'ann:upsert': {
+        // 重同步窗口内的广播一律忽略：其状态已包含在随后 ops 携带的权威批注快照中
+        if (this.resyncing) break
         if (!this.checkSeq(msg.seq)) return
         doc.upsertAnnotation(msg.ann)
         break
       }
 
       case 'ann:delete': {
+        if (this.resyncing) break
         if (!this.checkSeq(msg.seq)) return
         doc.removeAnnotation(msg.annId)
         break
@@ -266,7 +283,8 @@ class Collab {
         ElMessage.success('已重新连接并同步到最新版本')
       }
     } else {
-      // 增量：保留本地文档与未确认操作，批注先以服务端为准，ops 到达后再重放本地未确认操作
+      // 增量：保留本地文档与未确认操作；批注先以 welcome 的服务端快照为准，
+      // 随后 ops 会再次携带权威快照（与 backlog 重放配套），最后重放本地未确认操作
       doc.annotations = msg.annotations
       if (wasRejoin) ElMessage.success('连接已恢复，正在增量同步')
     }
@@ -324,7 +342,9 @@ class Collab {
   private applyRemoteToDoc(op: Op) {
     const doc = useDocStore()
     doc.text = apply(doc.text, op)
-    this.transformAnnotations(op)
+    // 重同步 backlog 重放时跳过锚点变换：批注已采用服务端权威快照（含这些操作的影响）。
+    // 本地未确认操作对锚点的影响由 finishResync 统一重放一次。
+    if (!this.applyingResyncOps) this.transformAnnotations(op)
     for (const fn of this.remoteListeners) fn(op)
   }
 

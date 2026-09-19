@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/ot.test.ts test/e2e.test.ts test/otClient.e2e.ts"
+    "test": "tsx --test test/ot.test.ts test/e2e.test.ts test/otClient.e2e.ts test/annResync.test.ts"
   },
   "dependencies": {
     "collab-annotation-editor": "file:..",
