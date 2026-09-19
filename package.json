@@ -1,0 +1,19 @@
+{
+  "name": "collab-annotation-editor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "基于 Vue3 + TS + Pinia + Element Plus + WebSocket 的多人轻量协同批注编辑器（OT）",
+  "scripts": {
+    "setup": "npm --prefix server install && npm --prefix client install",
+    "dev": "concurrently -n server,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server run start",
+    "test": "npm --prefix server test",
+    "typecheck": "npm --prefix server run typecheck && npm --prefix client run typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}
